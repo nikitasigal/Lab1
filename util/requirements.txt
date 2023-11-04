@@ -1,0 +1,5 @@
+celluloid
+numpy
+matplotlib
+seaborn
+ffmpeg
