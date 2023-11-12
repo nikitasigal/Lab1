@@ -44,12 +44,13 @@ void initialize(string filename) {
     fin.close();
 }
 
-void solve_serial() {
+void simulateSerial() {
     for (int cycle = 0; cycle < nCycles; ++cycle) {
         for (int i = 0; i < nBodies; ++i) {
-            for (int j = 0; j < nBodies; ++j) {
-                if (i != j)
-                    acc[i] += G * masses[j] / pow(max(1e-6, !(pos[i] - pos[j])), 3) * (pos[j] - pos[i]);
+            for (int j = i + 1; j < nBodies; ++j) {
+                Vector force = G / pow(max(1e-6, !(pos[i] - pos[j])), 3) * (pos[j] - pos[i]);
+                acc[i] += force * masses[j];
+                acc[j] += force * masses[i];
             }
         }
 
@@ -66,7 +67,7 @@ void solve_serial() {
     }
 }
 
-void solve_parallel() {
+void simulateParallel() {
     const int step = ceil((double)nBodies / nThreads);
 
 #pragma omp parallel num_threads(nThreads)
@@ -74,9 +75,6 @@ void solve_parallel() {
         int thread = omp_get_thread_num();
         int l = thread * step;
         int r = min(nBodies, l + step);
-
-        // #pragma omp critical
-        //         cout << "Thread " << thread << ": " << l << ' ' << r << '\n';
 
         for (int cycle = 0; cycle < nCycles; ++cycle) {
             for (int i = l; i < r; ++i) {
@@ -126,39 +124,44 @@ int main(int argC, char *argV[]) {
     string output_file = argV[2];
     nThreads = stoi(argV[3]);
 
+    // Read input data
     initialize(input_file);
 
-    ios_base::sync_with_stdio(false);
-
+    // Open output file
     fout = ofstream(output_file);
     if (!fout.is_open()) {
         cout << "Error: Could not open '" << output_file << "'\n";
         return 0;
     }
 
+    // Set output format
     fout.precision(6);
     fout.setf(ios_base::fixed | ios_base::right);
 
+    // Ouput masses of the bodies
     fout << "masses";
     for (int i = 0; i < nBodies; ++i) {
         fout << ',' << masses[i];
     }
     fout << '\n';
 
+    // Start the clocks
     double wall_start = omp_get_wtime();
     double cpu_start = clock();
 
     if (nThreads == 1)
-        solve_serial();
+        simulateSerial();
     else
-        solve_parallel();
+        simulateParallel();
 
+    // Stop the clocks
     double wall_end = omp_get_wtime();
     double cpu_end = clock();
 
     cout << "Wall: " << wall_end - wall_start << " s.\n";
     cout << "CPU:  " << (cpu_end - cpu_start) / 1000000 << " s.\n";
 
+    // Close output file
     fout.close();
     return 0;
 }
